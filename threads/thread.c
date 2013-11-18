@@ -71,6 +71,14 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+
+static bool thread_sort_less (const struct list_elem *lhs, const struct list_elem *rhs, void *aux UNUSED);
+
+static void thread_priority (struct thread *t);
+static void thread_recent_cpu (struct thread *t);
+
+static int load_avg;
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -98,6 +106,8 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  load_avg=0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -355,9 +365,109 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice /*UNUSED*/)
 {
   /* Not yet implemented. */
+
+	ASSERT (nice >= NICE_MIN && nice <= NICE_MAX);
+
+	struct thread *t;
+
+	t = thread_current();
+	t->nice=nice;
+	thread_calculate_recent_cpu();
+	thread_calculate_priority();
+}
+
+void thread_calculate_recent_cpu(void)
+{
+	thread_recent_cpu(thread_current());
+}
+
+void thread_calculate_priority(void)
+{
+	thread_priority(thread_current());
+}
+
+void
+thread_calculate_recent_cpu_for_all (void)
+{
+  struct list_elem *e;
+  struct thread *t;
+
+  e = list_begin (&all_list);
+  while (e != list_end (&all_list))
+    {
+      t = list_entry (e, struct thread, allelem);
+      thread_recent_cpu (t);
+      e = list_next (e);
+    }
+}
+
+void
+thread_calculate_priority_for_all (void)
+{
+  struct list_elem *e;
+  struct thread *t;
+
+  e = list_begin (&all_list);
+  while (e != list_end (&all_list))
+    {
+      t = list_entry (e, struct thread, allelem);
+      thread_priority (t);
+      e = list_next (e);
+    }
+
+  sort_thread_list (&ready_list);
+}
+
+//keep the thread who has outstanding priority at the head of the list
+static bool
+thread_sort_less (const struct list_elem *lhs, const struct list_elem *rhs, void *aux UNUSED)
+{
+  struct thread *a, *b;
+
+  ASSERT (lhs != NULL && rhs != NULL);
+
+  a = list_entry (lhs, struct thread, elem);
+  b = list_entry (rhs, struct thread, elem);
+
+  return (a->priority > b->priority);
+}
+
+void
+sort_thread_list (struct list *l)
+{
+  if (list_empty (l))
+    return;
+
+  list_sort (l, thread_sort_less, NULL);
+}
+
+static void
+thread_recent_cpu(struct thread *t)
+{
+	ASSERT (is_thread(t));
+	if(t==idle_thread)
+		return;
+	t->cpu = (2 * load_avg) / (2 * load_avg+1) * t->cpu + t->nice;
+}
+
+static void
+thread_priority(struct thread *t)
+{
+	ASSERT (is_thread(t));
+	if (t==idle_thread)
+		return;
+
+	t->priority = PRI_MAX - (t->cpu/4) - (t->nice * 2);
+
+	if (t->priority > PRI_MAX){
+	    t->priority = PRI_MAX;
+	}
+	else if (t->priority < PRI_MIN){
+	    t->priority = PRI_MIN;
+	}
 }
 
 /* Returns the current thread's nice value. */
@@ -365,7 +475,7 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
