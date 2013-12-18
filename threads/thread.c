@@ -483,7 +483,7 @@ int
 thread_get_load_avg (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return load_avg=(59/60)*load_avg+(1/60)*sizeof(ready_list);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -491,7 +491,7 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current()->cpu;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.

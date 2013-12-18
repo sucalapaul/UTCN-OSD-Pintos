@@ -76,9 +76,28 @@ exit (int status)
 }
 
 pid_t
-exec (const char *file)
+exec (const char *cmd_line)
 {
-  return (pid_t) syscall1 (SYS_EXEC, file);
+  //split into tokens
+	char * buff;
+	char arg[3][];
+	int nr_tokens=0;
+	buff=strtok(cmd_line,' ');
+	while (buff != NULL){
+		nr_tokens++;
+		arg[nr_tokens-1]=buff;
+	}
+
+	//pass arguments
+	switch (nr_tokens)
+	{
+	case 1:	return (pid_t) syscall1 (SYS_EXEC, arg[0]);
+		break;
+	case 2:	return (pid_t) syscall2 (SYS_EXEC, arg[0], arg[1]);
+		break;
+	default:	return (pid_t) syscall3 (SYS_EXEC, arg[0], arg[1], arg[2]);
+		break;
+	}
 }
 
 int
